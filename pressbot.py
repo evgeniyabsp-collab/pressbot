@@ -16,7 +16,7 @@ CONFIG = {
     "SMTP_HOST":     "smtp.yandex.ru",
     "SMTP_PORT":     587,
     "SMTP_USER":     "e.barakovskaya@betoneagency.ru",
-    "SMTP_PASSWORD": "czznyusxlolaftow",
+    "SMTP_PASSWORD": "evvjgjuwkqhjbcpt",
     "MEDIA_EMAIL":   "info@mperspektiva.ru",
     "YOUR_EMAIL":    "e.barakovskaya@betoneagency.ru",
     "FROM_NAME":     "Пресс-служба",
