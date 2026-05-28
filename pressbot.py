@@ -14,7 +14,7 @@ from telegram.ext import (
 CONFIG = {
     "BOT_TOKEN":     "8855518135:AAHnj0hRROX_BI3Sk_g5FSQLDZhfjvsKX1Y",
     "SMTP_HOST":     "smtp.yandex.ru",
-    "SMTP_PORT":     587,
+    "SMTP_PORT":     465,
     "SMTP_USER":     "e.barakovskaya@betoneagency.ru",
     "SMTP_PASSWORD": "evvjgjuwkqhjbcpt",
     "MEDIA_EMAIL":   "info@mperspektiva.ru",
@@ -49,7 +49,7 @@ async def send_email(release_text: str, attachments: list[dict]) -> bool:
             msg,
             hostname=CONFIG["SMTP_HOST"],
             port=CONFIG["SMTP_PORT"],
-            start_tls=True,
+            use_tls=True,
             username=CONFIG["SMTP_USER"],
             password=CONFIG["SMTP_PASSWORD"],
         )
