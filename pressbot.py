@@ -1,10 +1,7 @@
 import logging
+import httpx
 from pathlib import Path
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email import encoders
-import aiosmtplib
+import base64
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
@@ -13,12 +10,10 @@ from telegram.ext import (
 
 CONFIG = {
     "BOT_TOKEN":     "8855518135:AAHnj0hRROX_BI3Sk_g5FSQLDZhfjvsKX1Y",
-    "SMTP_HOST":     "smtp.yandex.ru",
-    "SMTP_PORT":     465,
-    "SMTP_USER":     "e.barakovskaya@betoneagency.ru",
-    "SMTP_PASSWORD": "evvjgjuwkqhjbcpt",
+    "RESEND_API_KEY": "re_RP3AynNR_6hcgxcyg3juLZ54FWymqxbqe",
     "MEDIA_EMAIL":   "info@mperspektiva.ru",
-    "YOUR_EMAIL":    "e.barakovskaya@betoneagency.ru",
+    "YOUR_EMAIL":    "evgeniya.bsp@gmail.com",
+    "FROM_EMAIL":    "onboarding@resend.dev",
     "FROM_NAME":     "Пресс-служба",
     "EMAIL_SUBJECT": "Пресс-релиз",
 }
@@ -32,28 +27,35 @@ logging.basicConfig(format="%(asctime)s | %(levelname)s | %(message)s", level=lo
 log = logging.getLogger(__name__)
 
 async def send_email(release_text: str, attachments: list[dict]) -> bool:
-    msg = MIMEMultipart()
-    msg["From"]    = f"{CONFIG['FROM_NAME']} <{CONFIG['SMTP_USER']}>"
-    msg["To"]      = CONFIG["MEDIA_EMAIL"]
-    msg["Cc"]      = CONFIG["YOUR_EMAIL"]
-    msg["Subject"] = CONFIG["EMAIL_SUBJECT"]
-    msg.attach(MIMEText(release_text, "plain", "utf-8"))
-    for att in attachments:
-        part = MIMEBase(*att["mime"].split("/"))
-        part.set_payload(att["data"])
-        encoders.encode_base64(part)
-        part.add_header("Content-Disposition", f'attachment; filename="{att["filename"]}"')
-        msg.attach(part)
+    payload = {
+        "from": f"{CONFIG['FROM_NAME']} <{CONFIG['FROM_EMAIL']}>",
+        "to": [CONFIG["MEDIA_EMAIL"]],
+        "cc": [CONFIG["YOUR_EMAIL"]],
+        "subject": CONFIG["EMAIL_SUBJECT"],
+        "text": release_text,
+    }
+    if attachments:
+        payload["attachments"] = [
+            {
+                "filename": att["filename"],
+                "content": base64.b64encode(att["data"]).decode(),
+            }
+            for att in attachments
+        ]
     try:
-        await aiosmtplib.send(
-            msg,
-            hostname=CONFIG["SMTP_HOST"],
-            port=CONFIG["SMTP_PORT"],
-            use_tls=True,
-            username=CONFIG["SMTP_USER"],
-            password=CONFIG["SMTP_PASSWORD"],
-        )
-        return True
+        async with httpx.AsyncClient() as client:
+            r = await client.post(
+                "https://api.resend.com/emails",
+                headers={"Authorization": f"Bearer {CONFIG['RESEND_API_KEY']}"},
+                json=payload,
+                timeout=30,
+            )
+        if r.status_code == 200 or r.status_code == 201:
+            log.info("Письмо отправлено: %s", r.json())
+            return True
+        else:
+            log.error("Ошибка Resend: %s %s", r.status_code, r.text)
+            return False
     except Exception as e:
         log.error("Ошибка отправки: %s", e)
         return False
@@ -101,8 +103,7 @@ async def receive_file(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
         file = await ctx.bot.get_file(doc.file_id)
         data = await file.download_as_bytearray()
         ext  = Path(doc.file_name or "file").suffix.lower()
-        mime_map = {".pdf": "application/pdf", ".doc": "application/msword", ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
-        sessions[user_id]["files"].append({"filename": doc.file_name or f"file{ext}", "data": bytes(data), "mime": mime_map.get(ext, "application/octet-stream")})
+        sessions[user_id]["files"].append({"filename": doc.file_name or f"file{ext}", "data": bytes(data), "mime": "application/octet-stream"})
     count = len(sessions[user_id]["files"])
     await msg.reply_text(
         f"✅ Файл добавлен ({count} шт. всего). Отправляй ещё или нажми «Готово».",
